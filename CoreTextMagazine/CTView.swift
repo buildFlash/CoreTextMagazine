@@ -9,27 +9,44 @@
 import UIKit
 import CoreText
 
-class CTView: UIView {
+class CTView: UIScrollView {
 
-    
-    override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
-        // Flip the coordinate system
-        context.textMatrix = .identity
-        context.translateBy(x: 0, y: bounds.size.height)
-        context.scaleBy(x: 1.0, y: -1.0)
-        
-        let path = CGMutablePath()
-        path.addRect(bounds)
-        
-        let attrString = NSAttributedString(string: "Hello World")
-        
+    // MARK: - Properties
+    func buildFrames(withAttrString attrString: NSAttributedString, andImages images: [[String: Any]]) {
+        isPagingEnabled = true
         let frameSetter = CTFramesetterCreateWithAttributedString(attrString as CFAttributedString)
         
-        let frame = CTFramesetterCreateFrame(frameSetter, CFRangeMake(0, attrString.length), path, nil)
+        var pageView = UIView()
+        var textPos = 0
+        var columnIndex: CGFloat = 0
+        var pageIndex: CGFloat = 0
+        let settings = CTSettings()
         
-        CTFrameDraw(frame, context)
+        while textPos < attrString.length {
+            if columnIndex.truncatingRemainder(dividingBy: settings.columnsPerPage) == 0 {
+                columnIndex = 0
+                pageView = UIView(frame: settings.pageRect.offsetBy(dx: pageIndex * bounds.width, dy: 0))
+                addSubview(pageView)
+                pageIndex += 1
+            }
+            let columnXOrigin = pageView.frame.size.width / settings.columnsPerPage
+            let columnOffset = columnIndex * columnXOrigin
+            let columnFrame = settings.columnRect.offsetBy(dx: columnOffset, dy: 0)
+            
+            let path = CGMutablePath()
+            path.addRect(CGRect(origin: .zero, size: columnFrame.size))
+            
+            let ctframe = CTFramesetterCreateFrame(frameSetter, CFRangeMake(textPos, 0), path, nil)
+            let column = CTColumnView(frame: columnFrame, ctframe: ctframe)
+            pageView.addSubview(column)
+            
+            let frameRange = CTFrameGetVisibleStringRange(ctframe)
+            textPos += frameRange.length
+            
+            columnIndex += 1
+        }
+        contentSize = CGSize(width: CGFloat(pageIndex) * bounds.size.width,
+                             height: bounds.size.height)
     }
-    
 
 }
